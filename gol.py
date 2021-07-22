@@ -60,7 +60,40 @@ def calc_next_world_cpu(world, next_world):
 
 mod = SourceModule("""
 __global__ void calc_next_state_gpu(const int *world, int *next_world, const int height, const int width) {
-    // TODO
+    unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+    unsigned int index = y * width + x;
+
+    int num = 0;
+    int cell, next_cell;
+
+    if (x >= width) {
+        return;
+    }
+    if (y >= height) {
+        return;
+    }
+
+    cell = world[index];
+
+    num += world[((y - 1) % height) * width + ((x - 1) % width)];
+    num += world[((y - 1) % height) * width + ( x      % width)];
+    num += world[((y - 1) % height) * width + ((x + 1) % width)];
+    num += world[( y      % height) * width + ((x - 1) % width)];
+    num += world[( y      % height) * width + ((x + 1) % width)];
+    num += world[((y + 1) % height) * width + ((x - 1) % width)];
+    num += world[((y + 1) % height) * width + ( x      % width)];
+    num += world[((y + 1) % height) * width + ((x + 1) % width)];
+
+    if (cell == 0 && num == 3) {
+        next_cell = 1;
+    } else if (cell != 0 && (num >= 2 && num <= 3)) {
+        next_cell = 1;
+    } else {
+        next_cell = 0;
+    }
+
+    next_world[index] = next_cell;
 }
 """)
 calc_next_state_gpu = mod.get_function("calc_next_state_gpu")
