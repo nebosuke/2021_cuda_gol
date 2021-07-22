@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import numpy
+import pycuda.driver as cuda
+import pycuda.autoinit
+from pycuda.compiler import SourceModule
 import curses
 from curses import wrapper
 import time
@@ -26,7 +29,7 @@ def print_world(stdscr, gen, world, elapsed):
     stdscr.addstr(0, 0, "Gen: %07d, Avg: %.6f[sec]" %( gen, (elapsed / gen) if gen > 0 else 0.0), curses.A_REVERSE)
     stdscr.refresh()
 
-def calc_next_cell_state(world, next_world, height, width, y, x):
+def calc_next_cell_state_cpu(world, next_world, height, width, y, x):
     cell = cell_value(world, height, width, y, x)
     next_cell = cell
     num = 0
@@ -46,14 +49,27 @@ def calc_next_cell_state(world, next_world, height, width, y, x):
         next_cell = 0
     next_world[y, x] = next_cell
 
-def calc_next_world(world, next_world):
+def calc_next_world_cpu(world, next_world):
     '''
     現行世代の盤面の状況を元に次世代の盤面を計算する
     '''
     height, width = world.shape
     for y in range(height):
         for x in range(width):
-            calc_next_cell_state(world, next_world, height, width, y, x)
+            calc_next_cell_state_cpu(world, next_world, height, width, y, x)
+
+mod = SourceModule("""
+__global__ void calc_next_state_gpu(const int *world, int *next_world, const int height, const int width) {
+    // TODO
+}
+""")
+calc_next_state_gpu = mod.get_function("calc_next_state_gpu")
+
+def calc_next_world_gpu(world, next_world):
+    height, width = world.shape
+    block = (32, 32, 1)
+    grid = ((width + block[0] - 1) // block[0], (height + block[1] - 1) // block[1])
+    calc_next_state_gpu(cuda.In(world), cuda.Out(next_world), numpy.int32(height), numpy.int32(width), block = block, grid = grid)
 
 def gol(stdscr, height, width):
     # 状態を持つ2次元配列を生成し、0 or 1 の乱数で初期化する。
@@ -68,7 +84,7 @@ def gol(stdscr, height, width):
 
         start_time = time.time()
 
-        calc_next_world(world, next_world)
+        calc_next_world_gpu(world, next_world)
 
         duration = time.time() - start_time
         elapsed += duration
