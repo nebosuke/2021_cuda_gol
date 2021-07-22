@@ -4,12 +4,13 @@
 import numpy
 import curses
 from curses import wrapper
+import time
 
 cell_value = lambda world, height, width, y, x: world[y % height, x % width]
 
 row2str = lambda row: ''.join(['O' if c != 0 else '-' for c in row])
 
-def print_world(stdscr, gen, world):
+def print_world(stdscr, gen, world, elapsed):
     '''
     盤面をターミナルに出力する
     '''
@@ -22,6 +23,7 @@ def print_world(stdscr, gen, world):
     for y in range(height):
         row = world[y][:width]
         stdscr.addstr(y, 0, row2str(row))
+    stdscr.addstr(0, 0, "Gen: %07d, Avg: %.6f[sec]" %( gen, (elapsed / gen) if gen > 0 else 0.0), curses.A_REVERSE)
     stdscr.refresh()
 
 def calc_next_cell_state(world, next_world, height, width, y, x):
@@ -57,18 +59,26 @@ def gol(stdscr, height, width):
     # 状態を持つ2次元配列を生成し、0 or 1 の乱数で初期化する。
     world = numpy.random.randint(2, size=(height, width), dtype=numpy.int32)
 
+    elapsed = 0.0
     gen = 0
     while True:
-        print_world(stdscr, gen, world)
+        print_world(stdscr, gen, world, elapsed)
 
         next_world = numpy.empty((height, width), dtype=numpy.int32)
+
+        start_time = time.time()
+
         calc_next_world(world, next_world)
+
+        duration = time.time() - start_time
+        elapsed += duration
+
         world = next_world.copy()
 
         gen += 1
 
 def main(stdscr):
-    gol(stdscr, 1000, 1000)
+    gol(stdscr, 100, 100)
     
 if __name__ == '__main__':
     curses.wrapper(main)
